@@ -1,5 +1,14 @@
 # Verification report
 
+**Status: local and CI verification completed with documented findings. Documentation finalized on 3 November 2026.**
+
+| Completion scope | Status |
+| --- | --- |
+| Source configuration, local app and CI checks excluding the security gate | Verified |
+| Verification documentation and rollout proposal | Complete |
+| Security gate | Blocked by two documented legacy Checkov findings; no exemptions granted |
+| Live Azure deployment and Cisco integration | Unverified; prerequisites outstanding |
+
 Date: 3 November 2026. Scope: paid private architecture on `hardening/private-architecture`. No Azure resources were created or modified, and no Cisco interoperability test was performed. The user has no licensed Cisco lab and requested a plan before deployment.
 
 ## Results

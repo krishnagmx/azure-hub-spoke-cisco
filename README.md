@@ -1,5 +1,7 @@
 # Azure Hub-Spoke Landing Zone with Cisco Connectivity
 
+**Verification status: local and CI verification completed, with documented security findings — 3 November 2026.** Nine tests, Terraform validation and mocked plans for both environments, TFLint, Helm and container checks passed. The image scan found zero HIGH/CRITICAL vulnerabilities. Two legacy Checkov findings remain blocking; Azure deployment and Cisco end-to-end connectivity are unverified. [Verification evidence](docs/verification.md).
+
 Terraform reference architecture for private AKS workloads, a Premium Azure Firewall, private geo-replicated ACR, Key Vault CSI access and a Cisco IKEv2/IPsec+BGP connection. **This is a reference POC under review, not a deployed or audited production landing zone.**
 
 The paid private architecture is prepared for review on `hardening/private-architecture`. See the [deployment plan](docs/deployment-plan.md), [verification report](docs/verification.md) and [remaining scanner findings](docs/checkov-results.json). No paid resources have been provisioned. A real Azure deployment plan and Cisco connectivity test still require the external prerequisites below.
