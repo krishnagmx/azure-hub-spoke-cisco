@@ -1,0 +1,56 @@
+name: AKS Application Delivery
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'helm/**'
+      - '.github/workflows/app-deploy.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build and push immutable image
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+        run: |
+          az acr login --name "$ACR_NAME"
+          docker build --pull -t "${ACR_NAME}.azurecr.io/hybrid-demo:${GITHUB_SHA}" app
+          docker push "${ACR_NAME}.azurecr.io/hybrid-demo:${GITHUB_SHA}"
+      - uses: azure/setup-helm@v4.3.1
+        with:
+          version: v3.18.4
+      - name: Authenticate to AKS
+        env:
+          AKS_NAME: ${{ vars.AKS_NAME }}
+          AZURE_RG: ${{ vars.AZURE_RG }}
+        run: |
+          sudo az aks install-cli
+          az aks get-credentials -g "$AZURE_RG" -n "$AKS_NAME" --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+      - name: Helm rollout
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          KEYVAULT_NAME: ${{ vars.KEYVAULT_NAME }}
+          WORKLOAD_CLIENT_ID: ${{ vars.WORKLOAD_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          helm upgrade --install hybrid-demo ./helm/hybrid-demo \
+            --namespace demo --create-namespace --wait --timeout 10m \
+            --set-string image.repository="${ACR_NAME}.azurecr.io/hybrid-demo" \
+            --set-string image.tag="${GITHUB_SHA}" \
+            --set-string azure.keyvaultName="$KEYVAULT_NAME" \
+            --set-string azure.workloadClientId="$WORKLOAD_CLIENT_ID" \
+            --set-string azure.tenantId="$AZURE_TENANT_ID"
+          kubectl rollout status -n demo deployment/hybrid-demo --timeout=5m

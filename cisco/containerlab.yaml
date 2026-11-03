@@ -1,0 +1,30 @@
+name: azure-hybrid-cisco
+
+topology:
+  nodes:
+    csr:
+      kind: cisco_csr1000v
+      image: vrnetlab/vr-csr:17.03.04
+      startup-config: ./generated/ios-xe.cfg
+    wan:
+      kind: linux
+      image: hybrid-lab-wan:1.0
+      cap-add:
+        - NET_ADMIN
+      binds:
+        - ./wan-init.sh:/wan-init.sh:ro
+      ports:
+        - "500:500/udp"
+        - "4500:4500/udp"
+      exec:
+        - sh /wan-init.sh
+    lan:
+      kind: linux
+      image: alpine:3.20
+      exec:
+        - ip addr add 172.16.10.10/24 dev eth1
+        - ip link set eth1 up
+        - ip route replace default via 172.16.10.1
+  links:
+    - endpoints: ["csr:Gi2", "wan:eth1"]
+    - endpoints: ["csr:Gi3", "lan:eth1"]

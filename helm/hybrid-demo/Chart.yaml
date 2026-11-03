@@ -1,0 +1,5 @@
+apiVersion: v2
+name: hybrid-demo
+description: Azure hybrid landing zone workload with Key Vault CSI mount
+version: 0.1.0
+appVersion: '1.0.0'

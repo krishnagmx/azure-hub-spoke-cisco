@@ -1,0 +1,105 @@
+name: Terraform Apply
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'environments/**'
+      - 'modules/**'
+      - '.github/workflows/terraform-apply.yml'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Environment'
+        required: true
+        type: choice
+        options: [dev, prod]
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: terraform-apply-${{ github.event.inputs.target || 'prod' }}
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    environment: plan
+    outputs:
+      target: ${{ steps.select.outputs.target }}
+    env:
+      TF_IN_AUTOMATION: 'true'
+      TF_VAR_onprem_public_ip: ${{ vars.CISCO_PUBLIC_IP }}
+      TF_VAR_vpn_shared_key: ${{ secrets.VPN_PSK }}
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+    steps:
+      - id: select
+        run: echo "target=${{ github.event.inputs.target || 'prod' }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4.2.2
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - uses: actions/cache@v4.2.4
+        with:
+          path: .terraform-plugin-cache
+          key: tf-plugins-${{ runner.os }}-${{ hashFiles('**/versions.tf') }}
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - uses: azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_PLAN_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Create saved plan
+        working-directory: environments/${{ steps.select.outputs.target }}
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.STATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.STATE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.STATE_CONTAINER }}" \
+            -backend-config="key=${{ steps.select.outputs.target }}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+          terraform validate
+          terraform plan -input=false -var-file=config.tfvars -out=tfplan
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: tfplan-${{ steps.select.outputs.target }}
+          path: environments/${{ steps.select.outputs.target }}/tfplan
+          retention-days: 1
+          if-no-files-found: error
+  apply:
+    needs: plan
+    runs-on: ubuntu-24.04
+    # Protect "production" with mandatory reviewers and prevent self-approval.
+    environment: ${{ needs.plan.outputs.target == 'prod' && 'production' || 'development' }}
+    env:
+      TF_IN_AUTOMATION: 'true'
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - uses: actions/cache@v4.2.4
+        with:
+          path: .terraform-plugin-cache
+          key: tf-plugins-${{ runner.os }}-${{ hashFiles('**/versions.tf') }}
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          name: tfplan-${{ needs.plan.outputs.target }}
+          path: environments/${{ needs.plan.outputs.target }}
+      - uses: azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_APPLY_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Init and apply approved plan
+        working-directory: environments/${{ needs.plan.outputs.target }}
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.STATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.STATE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.STATE_CONTAINER }}" \
+            -backend-config="key=${{ needs.plan.outputs.target }}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+          terraform apply -input=false -auto-approve tfplan

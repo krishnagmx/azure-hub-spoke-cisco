@@ -1,0 +1,22 @@
+#cloud-config
+write_files:
+  - path: /etc/systemd/system/hybrid-demo.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Hybrid connectivity HTTP test
+      After=network-online.target
+      Wants=network-online.target
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/python3 -m http.server 8080 --bind 0.0.0.0 --directory /var/www/html
+      Restart=always
+      User=www-data
+      [Install]
+      WantedBy=multi-user.target
+  - path: /var/www/html/index.html
+    content: |
+      Hybrid Azure spoke test VM - private IP only.
+runcmd:
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, --now, hybrid-demo.service ]

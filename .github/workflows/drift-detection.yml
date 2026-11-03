@@ -1,0 +1,65 @@
+name: Daily Terraform Drift
+on:
+  schedule:
+    - cron: '20 5 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+jobs:
+  drift:
+    runs-on: ubuntu-24.04
+    environment: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [dev, prod]
+    env:
+      TF_VAR_onprem_public_ip: ${{ vars.CISCO_PUBLIC_IP }}
+      TF_VAR_vpn_shared_key: ${{ secrets.VPN_PSK }}
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - uses: actions/cache@v4.2.4
+        with:
+          path: .terraform-plugin-cache
+          key: tf-plugins-${{ runner.os }}-${{ hashFiles('**/versions.tf') }}
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - uses: azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_PLAN_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Drift plan
+        id: drift
+        working-directory: environments/${{ matrix.target }}
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.STATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.STATE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.STATE_CONTAINER }}" \
+            -backend-config="key=${{ matrix.target }}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+          set +e
+          terraform plan -refresh-only -detailed-exitcode -no-color -var-file=config.tfvars > drift.txt 2>&1
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 1 ]; then cat drift.txt; exit 1; fi
+      - name: Open a drift issue
+        if: steps.drift.outputs.exit_code == '2'
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const title = 'Terraform drift detected: ${{ matrix.target }}';
+            const {owner, repo} = context.repo;
+            const {data: issues} = await github.rest.issues.listForRepo({owner,repo,state:'open'});
+            if (!issues.some(i => i.title === title)) {
+              await github.rest.issues.create({owner,repo,title,
+                body:'A daily refresh-only Terraform plan detected infrastructure drift. Investigate the workflow run, compare with the actual infrastructure, and open a reviewed PR before remediation.\n\nRun: '+context.serverUrl+'/'+owner+'/'+repo+'/actions/runs/'+context.runId});
+            }

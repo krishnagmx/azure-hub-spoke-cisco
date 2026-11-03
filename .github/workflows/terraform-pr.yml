@@ -1,0 +1,96 @@
+name: Terraform PR
+on:
+  pull_request:
+    paths:
+      - 'environments/**'
+      - 'modules/**'
+      - '.github/workflows/terraform-pr.yml'
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+concurrency:
+  group: terraform-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  validate-and-plan:
+    # Never issue cloud credentials to untrusted fork code.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    environment: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [dev, prod]
+    defaults:
+      run:
+        working-directory: environments/${{ matrix.target }}
+    env:
+      ARM_USE_AZUREAD: 'true'
+      TF_IN_AUTOMATION: 'true'
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+      TF_VAR_onprem_public_ip: ${{ vars.CISCO_PUBLIC_IP }}
+      TF_VAR_vpn_shared_key: ${{ secrets.VPN_PSK }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - uses: actions/cache@v4.2.4
+        with:
+          path: .terraform-plugin-cache
+          key: tf-plugins-${{ runner.os }}-${{ hashFiles('**/versions.tf') }}
+      - name: Initialize plugin cache
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - name: Format
+        run: terraform fmt -check -recursive ../..
+      - uses: azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_PLAN_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Init state
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.STATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.STATE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.STATE_CONTAINER }}" \
+            -backend-config="key=${{ matrix.target }}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+      - name: Validate
+        run: terraform validate -no-color
+      - uses: terraform-linters/setup-tflint@v4.1.1
+        with:
+          tflint_version: v0.57.0
+      - name: TFLint
+        run: |
+          tflint --init --config="${GITHUB_WORKSPACE}/.tflint.hcl"
+          tflint --config="${GITHUB_WORKSPACE}/.tflint.hcl"
+      - name: Checkov (blocking)
+        run: |
+          python3 -m pip install --quiet checkov
+          checkov --directory "${GITHUB_WORKSPACE}" --framework terraform --quiet
+      - name: Plan
+        run: |
+          terraform plan -input=false -no-color -var-file=config.tfvars -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+      - name: Comment redacted plan
+        if: always()
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const path = `environments/${{ matrix.target }}/plan.txt`;
+            const detail = fs.existsSync(path)
+              ? fs.readFileSync(path, 'utf8').slice(0, 30000)
+              : 'Plan not available; inspect failing checks.';
+            const header = `<!-- tf-plan-${{ matrix.target }} -->`;
+            const body = header + "\n**Terraform ${{ matrix.target }} plan** (sensitive values are redacted by Terraform)\n\n" +
+              "<details><summary>Expand plan</summary>\n\n" +
+              "```text\n" + detail.replace(/```/g, "` ` `") + "\n```\n</details>";
+            const {owner, repo} = context.repo;
+            const {data: comments} = await github.rest.issues.listComments({owner, repo, issue_number: context.issue.number});
+            const old = comments.find(c => c.user.type === 'Bot' && c.body.includes(header));
+            if (old) await github.rest.issues.updateComment({owner, repo, comment_id: old.id, body});
+            else await github.rest.issues.createComment({owner, repo, issue_number: context.issue.number, body});

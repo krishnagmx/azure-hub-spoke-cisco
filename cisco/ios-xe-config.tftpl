@@ -1,0 +1,81 @@
+! Generated securely by scripts/render-cisco.py: never commit generated files.
+service timestamps debug datetime msec
+service timestamps log datetime msec
+hostname csr-azure-hybrid
+ip cef
+!
+interface GigabitEthernet2
+ description WAN_to_linux_NAT_edge
+ ip address 192.0.2.2 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet3
+ description OnPrem_LAN
+ ip address 172.16.10.1 255.255.255.0
+ no shutdown
+!
+! IKEv2: crypto isakmp policies would be IKEv1 and are deliberately omitted.
+crypto ikev2 proposal AZURE-PROPOSAL
+ encryption aes-cbc-256
+ integrity sha256
+ group 14
+!
+crypto ikev2 policy AZURE-POLICY
+ proposal AZURE-PROPOSAL
+!
+crypto ikev2 keyring AZURE-KEYRING
+ peer AZURE-GW
+  address ${AZURE_VPN_IP}
+  pre-shared-key local ${VPN_PSK}
+  pre-shared-key remote ${VPN_PSK}
+!
+crypto ikev2 profile AZURE-IKE-PROFILE
+ match identity remote address ${AZURE_VPN_IP} 255.255.255.255
+ identity local address ${CISCO_PUBLIC_IP}
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local AZURE-KEYRING
+ dpd 10 3 periodic
+!
+crypto ipsec transform-set AZURE-TRANSFORM esp-aes 256 esp-sha256-hmac
+ mode tunnel
+!
+crypto ipsec profile AZURE-IPSEC-PROFILE
+ set transform-set AZURE-TRANSFORM
+ set ikev2-profile AZURE-IKE-PROFILE
+ set pfs group14
+ set security-association lifetime seconds 27000
+!
+interface Tunnel0
+ description Route_based_IPSec_to_Azure
+ ip address 169.254.21.2 255.255.255.252
+ tunnel source GigabitEthernet2
+ tunnel mode ipsec ipv4
+ tunnel destination ${AZURE_VPN_IP}
+ tunnel protection ipsec profile AZURE-IPSEC-PROFILE
+ no shutdown
+!
+! Force the public Azure gateway endpoint out the WAN, not into the VPN.
+ip route ${AZURE_VPN_IP} 255.255.255.255 192.0.2.1
+!
+ip prefix-list ONPREM-OUT seq 10 permit 172.16.10.0/24
+ip prefix-list AZURE-IN seq 10 permit ${PROD_CIDR}
+ip prefix-list AZURE-IN seq 20 permit ${NONPROD_CIDR}
+ip prefix-list AZURE-IN seq 30 permit ${HUB_CIDR}
+route-map ALLOW-ONPREM permit 10
+ match ip address prefix-list ONPREM-OUT
+route-map ALLOW-AZURE permit 10
+ match ip address prefix-list AZURE-IN
+!
+router bgp 65020
+ bgp log-neighbor-changes
+ neighbor 169.254.21.1 remote-as 65010
+ neighbor 169.254.21.1 update-source Tunnel0
+ address-family ipv4
+  network 172.16.10.0 mask 255.255.255.0
+  neighbor 169.254.21.1 activate
+  neighbor 169.254.21.1 route-map ALLOW-AZURE in
+  neighbor 169.254.21.1 route-map ALLOW-ONPREM out
+ exit-address-family
+!
+end

@@ -1,0 +1,18 @@
+replicaCount: 2
+image:
+  repository: example.azurecr.io/hybrid-demo
+  tag: '0'
+  pullPolicy: IfNotPresent
+azure:
+  keyvaultName: ''
+  workloadClientId: ''
+  tenantId: ''
+service:
+  port: 8080
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi

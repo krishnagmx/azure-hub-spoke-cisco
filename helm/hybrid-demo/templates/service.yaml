@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hybrid-demo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: hybrid-demo
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
