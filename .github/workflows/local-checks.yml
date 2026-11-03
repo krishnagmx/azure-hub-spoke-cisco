@@ -33,6 +33,7 @@ jobs:
           terraform_version: 1.9.8
       - run: terraform -chdir=environments/${{ matrix.target }} init -backend=false -input=false -lockfile=readonly
       - run: terraform -chdir=environments/${{ matrix.target }} validate -no-color
+      - run: terraform -chdir=environments/${{ matrix.target }} test -var-file=config.tfvars -no-color
       - uses: terraform-linters/setup-tflint@v4.1.1
         with:
           tflint_version: v0.57.0
@@ -55,3 +56,13 @@ jobs:
           python-version: '3.12'
       - run: python3 -m pip install checkov==3.4.3
       - run: checkov -d . --framework terraform --quiet --skip-download
+  image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - run: docker build -t hybrid-demo:ci app
+      - name: Block HIGH and CRITICAL image vulnerabilities
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.76.1 image --scanners vuln --exit-code 1 \
+            --severity HIGH,CRITICAL hybrid-demo:ci

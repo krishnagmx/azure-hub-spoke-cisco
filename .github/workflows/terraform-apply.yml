@@ -1,11 +1,5 @@
 name: Terraform Apply
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'environments/**'
-      - 'modules/**'
-      - '.github/workflows/terraform-apply.yml'
   workflow_dispatch:
     inputs:
       target:
@@ -13,6 +7,10 @@ on:
         required: true
         type: choice
         options: [dev, prod]
+      apply:
+        description: 'Apply the saved plan after environment approval (default is plan only)'
+        type: boolean
+        default: false
 permissions:
   contents: read
   id-token: write
@@ -20,13 +18,24 @@ concurrency:
   group: terraform-apply-${{ github.event.inputs.target || 'prod' }}
   cancel-in-progress: false
 jobs:
-  plan:
+  security:
     runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install checkov==3.4.3
+      - run: checkov -d . --framework terraform --quiet --skip-download
+  plan:
+    runs-on: [self-hosted, linux, x64, azure-private]
     environment: plan
     outputs:
       target: ${{ steps.select.outputs.target }}
     env:
       TF_IN_AUTOMATION: 'true'
+      TF_VAR_disk_encryption_set_id: ${{ vars.DISK_ENCRYPTION_SET_ID }}
+      TF_VAR_aks_admin_group_object_ids: ${{ vars.AKS_ADMIN_GROUP_OBJECT_IDS }}
       TF_VAR_onprem_public_ip: ${{ vars.CISCO_PUBLIC_IP }}
       TF_VAR_vpn_shared_key: ${{ secrets.VPN_PSK }}
       TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
@@ -66,8 +75,9 @@ jobs:
           retention-days: 1
           if-no-files-found: error
   apply:
-    needs: plan
-    runs-on: ubuntu-24.04
+    if: github.event.inputs.apply == 'true' && github.ref == 'refs/heads/main'
+    needs: [plan, security]
+    runs-on: [self-hosted, linux, x64, azure-private]
     # Protect "production" with mandatory reviewers and prevent self-approval.
     environment: ${{ needs.plan.outputs.target == 'prod' && 'production' || 'development' }}
     env:

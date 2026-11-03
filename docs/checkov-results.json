@@ -1,156 +1,24 @@
 {
   "summary": {
-    "passed": 103,
-    "failed": 24,
+    "passed": 131,
+    "failed": 2,
     "skipped": 0,
     "parsing_errors": 0,
-    "resource_count": 91,
+    "resource_count": 111,
     "checkov_version": "3.4.3"
   },
   "failed_checks": [
     {
-      "check_id": "CKV_AZURE_237",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure dedicated data endpoints are enabled.",
-      "file_path": "/environments/dev/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_233",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure Azure Container Registry (ACR) is zone redundant",
-      "file_path": "/environments/dev/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_167",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure a retention policy is set to cleanup untagged manifests.",
-      "file_path": "/environments/dev/main.tf"
-    },
-    {
       "check_id": "CKV_AZURE_164",
       "resource": "azurerm_container_registry.this",
       "check_name": "Ensures that ACR uses signed/trusted images",
       "file_path": "/environments/dev/main.tf"
     },
     {
-      "check_id": "CKV_AZURE_165",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure geo-replicated container registries to match multi-region container deployments.",
-      "file_path": "/environments/dev/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_166",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure container image quarantine, scan, and mark images verified",
-      "file_path": "/environments/dev/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_163",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Enable vulnerability scanning for container images.",
-      "file_path": "/environments/dev/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_139",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure ACR set to disable public networking",
-      "file_path": "/environments/dev/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_237",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure dedicated data endpoints are enabled.",
-      "file_path": "/environments/prod/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_233",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure Azure Container Registry (ACR) is zone redundant",
-      "file_path": "/environments/prod/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_167",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure a retention policy is set to cleanup untagged manifests.",
-      "file_path": "/environments/prod/main.tf"
-    },
-    {
       "check_id": "CKV_AZURE_164",
       "resource": "azurerm_container_registry.this",
       "check_name": "Ensures that ACR uses signed/trusted images",
       "file_path": "/environments/prod/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_165",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure geo-replicated container registries to match multi-region container deployments.",
-      "file_path": "/environments/prod/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_166",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure container image quarantine, scan, and mark images verified",
-      "file_path": "/environments/prod/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_163",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Enable vulnerability scanning for container images.",
-      "file_path": "/environments/prod/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_139",
-      "resource": "azurerm_container_registry.this",
-      "check_name": "Ensure ACR set to disable public networking",
-      "file_path": "/environments/prod/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_170",
-      "resource": "module.aks.azurerm_kubernetes_cluster.this",
-      "check_name": "Ensure that AKS use the Paid Sku for its SLA",
-      "file_path": "/modules/aks/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_115",
-      "resource": "module.aks.azurerm_kubernetes_cluster.this",
-      "check_name": "Ensure that AKS enables private clusters",
-      "file_path": "/modules/aks/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_117",
-      "resource": "module.aks.azurerm_kubernetes_cluster.this",
-      "check_name": "Ensure that AKS uses disk encryption set",
-      "file_path": "/modules/aks/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_232",
-      "resource": "module.aks.azurerm_kubernetes_cluster.this",
-      "check_name": "Ensure that only critical system pods run on system nodes",
-      "file_path": "/modules/aks/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_226",
-      "resource": "module.aks.azurerm_kubernetes_cluster.this",
-      "check_name": "Ensure ephemeral disks are used for OS disks",
-      "file_path": "/modules/aks/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_6",
-      "resource": "module.aks.azurerm_kubernetes_cluster.this",
-      "check_name": "Ensure AKS has an API Server Authorized IP Ranges enabled",
-      "file_path": "/modules/aks/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_227",
-      "resource": "module.aks.azurerm_kubernetes_cluster.this",
-      "check_name": "Ensure that the AKS cluster encrypt temp disks, caches, and data flows between Compute and Storage resources",
-      "file_path": "/modules/aks/main.tf"
-    },
-    {
-      "check_id": "CKV_AZURE_220",
-      "resource": "module.network.azurerm_firewall_policy.this",
-      "check_name": "Ensure Firewall policy has IDPS mode as deny",
-      "file_path": "/modules/network/main.tf"
     }
   ]
 }

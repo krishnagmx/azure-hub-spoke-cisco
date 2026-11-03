@@ -1,59 +1,71 @@
 # Verification report
 
-Date: 3 November 2026. Verification applies to the source delivered with this report. Local checks do not establish successful Azure provisioning or Cisco interoperability.
+Date: 3 November 2026. Scope: paid private architecture on `hardening/private-architecture`. No Azure resources were created or modified, and no Cisco interoperability test was performed. The user has no licensed Cisco lab and requested a plan before deployment.
 
 ## Results
 
 | Check | Result |
 | --- | --- |
-| Terraform recursive formatting | Passed after formatting 14 files |
-| Backend-disabled init, dev and prod | Passed; provider lock files generated and included |
-| Terraform validate, dev and prod | Passed with deprecated subnet-policy argument warnings |
-| TFLint, dev and prod | Passed with the repository's AzureRM plugin |
-| Python unittest | Six tests passed on host Python 3.13 and container Python 3.12; container test fixture uses a temporary writable `/tmp` |
-| HTTP behavior | `/` and `/healthz` return 200; `/readyz` returns 503 for absent/empty secret, 200 for a populated mount, then 503 after removal; unknown path returns 404; secret value never appears in response |
-| Python compilation and shell syntax | Passed |
-| YAML parsing | Nine configuration files parsed |
-| Helm lint | Passed; informational recommendation to add a chart icon |
-| Helm template | Five Kubernetes resources rendered and parsed successfully |
-| Docker build and runtime | Built `hybrid-demo:local-verify`; HTTP 200 liveness and HTTP 503 readiness without a secret mount under a read-only filesystem, dropped capabilities and no-new-privileges |
-| Cisco rendering | Dev/prod rendered using synthetic documentation IPs and PSK; permissions checked as 0600; generated files removed |
-| Checkov Terraform scan | Failed: 103 passed, 24 failed, zero skipped, zero parsing errors; previous baseline was 99 passed / 28 failed |
-| Azure plan/apply and end-to-end VPN/BGP/AKS | Not run; deployment inputs and network prerequisites remain outstanding |
+| Terraform formatting | Passed |
+| Backend-disabled provider initialization and validation | Dev and prod passed |
+| Mocked Terraform plan assertions | Dev and prod passed under Terraform 1.9.8; five security assertions in each plan |
+| TFLint | Dev and prod passed with AzureRM rules 0.27.0 |
+| Python tests | Nine tests passed on host Python 3.13 and container Python 3.12 |
+| HTTP behavior | Liveness 200; readiness 503 for absent/empty secret, 200 for a populated temporary mount, then 503 after removal; unknown path 404; secret value absent from responses |
+| Strict signing-policy tests | Exact repository and digest accepted; wildcard scope/signer, empty signer/trust store, permissive verification, expiry-skip override, extra rule and mutable tag rejected |
+| Python compilation / shell syntax | Passed |
+| YAML / Helm | Workflows parse; chart lint passed; rendered digest and application node selector checked |
+| Docker build | Passed on Python 3.12 / Alpine 3.23; detected Alpine 3.23.7 |
+| Trivy image scan | Zero HIGH/CRITICAL findings; [image report](image-scan.json), Trivy 0.76.1 |
+| Checkov Terraform scan | 131 passed, 2 failed, 0 skipped, 0 parsing errors across 111 resource definitions; [findings](checkov-results.json) |
+| Live saved Azure plan | Not created; real DES, administrator, backend, runner and Cisco peer inputs remain outstanding |
+| Azure provisioning / AKS CSI / VPN and BGP | Not verified; no deployment performed |
+| Real image signature, quarantine release and admission policy | Not verified; security bootstrap and live negative tests required |
 
-Tools: Terraform 1.15.5 on darwin_amd64, Python 3.13 on the host and Python 3.12 in Docker, TFLint 0.57.0 with AzureRM rules 0.27.0, Helm 3.18.4, Checkov 3.4.3 and PyYAML 6.0.3. GitHub workflows select Terraform 1.9.8; that Terraform version was not used for the local checks.
+Terraform uses AzureRM 3.117.1 and AzureAD 2.53.1 with committed provider locks. Final full-toolchain verification used Terraform 1.9.8, matching CI, TFLint 0.57.0, Helm 3.18.4, Checkov 3.4.3 and PyYAML 6.0.3. The pinned provider emits deprecation warnings for its old subnet-policy and managed-Entra arguments; these are warnings, not validation errors. The Entra flag remains true as required by that provider.
 
-## Security gate
+The full local script exits nonzero at its final security check. Passing the earlier checks does not mean the full security gate is green. Lower-severity image findings were outside the requested HIGH/CRITICAL scan and are not claimed absent.
 
-Follow-up hardening added Key Vault deny-by-default network ACLs with no trusted-service bypass, threat intelligence `Deny` on both the Firewall and its policy, AKS automatic patch upgrades and an explicit 110-pod node limit. These changes resolved CKV_AZURE_109, CKV_AZURE_216, CKV_AZURE_171 and CKV_AZURE_168. Explicit peer-spoke UDRs now make the cross-spoke inspection path visible in each route table, and subnet associations wait for those routes. These changes have been validated locally, not applied in Azure.
+## Hardening outcome
 
-The initial GitHub `Local checks` run passed. Initial Terraform Apply and AKS Application Delivery runs failed at Azure login because the newly created repository has no Azure OIDC secrets or repository variables. GitHub sign-in permits publishing code; it does not configure Azure deployment identities. The expanded `Local checks` workflow validates infrastructure without those identities and exposes the outstanding Checkov failures as a separate blocking job.
+The original POC scan was 99 passed / 28 failed. Initial changes to Key Vault ACLs, firewall threat mode and AKS patch/max-pod settings reduced it to 24 findings. Following the user's choice of paid services/private networking, the review branch adds:
 
-The committed [scanner summary](checkov-results.json) lists every failed check and its resource. The count includes duplicate findings for ACR in the two environments. No checks were suppressed, and CI continues to block on these findings.
+- Private Standard AKS with an explicit private DNS zone linked to all three VNets.
+- Pre-created control-plane/kubelet identities, DNS and DES access before cluster creation, and registry pull access before nodes start.
+- Separate critical-system and application node pools, host encryption, ephemeral OS disks and required external DES.
+- Private, zone-redundant Premium ACR with geo-replication, retention and quarantine.
+- Premium Firewall with IDPS Deny and threat intelligence Deny, explicit peer-spoke routes and shared-runner HTTPS access to private endpoints.
+- Manual plan-only-by-default infrastructure workflow and digest-based app deployment from private runners.
+- An exact-repository strict Notation policy check, signature verification and blocking vulnerability scan in app delivery.
+- Credential-free CI for mocked plans, validation, TFLint, Helm, Python tests, Checkov and container vulnerability scanning.
 
-Remaining findings cover ACR data endpoints, redundancy, retention, image trust/quarantine/scanning and public access; AKS SLA tier, private API, encryption, node isolation, ephemeral disks and API allowlist; and Firewall IDPS. Basic ACR, Free AKS and Standard Firewall are intentional POC cost choices, but this does not satisfy the scanner's production policies. Resolve policies through reviewed infrastructure changes or explicitly approved, individually justified exemptions before expecting green cloud CI. Changing SKUs or network isolation also requires reviewing cost and runner connectivity.
+The local image scan reports no HIGH/CRITICAL vulnerabilities for the image ID recorded in [image-scan.json](image-scan.json). It is a point-in-time database result; subsequent builds or database updates need a new scan.
 
-CKV_AZURE_164 recommends Docker Content Trust, but Microsoft states that it cannot be enabled on new registries after 31 May 2026. Follow the [Notary Project migration guidance](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-content-trust-deprecation) for image signing and admission verification instead. The legacy check remains unsuppressed; setting its Terraform boolean would not prove a working signature policy. Also, Checkov's CKV_AZURE_163 only checks the registry SKU; passing it alone would not prove Defender scanning is configured.
+## Remaining scanner gate
+
+Only CKV_AZURE_164 remains, once per environment's registry. It checks legacy Docker Content Trust. Microsoft states that DCT cannot be enabled on new registries after 31 May 2026 and recommends a Notary Project signing/verification replacement. [Microsoft guidance](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-content-trust-deprecation)
+
+No suppression or blanket exemption was added. The replacement workflow code does not establish a working certificate authority, signing process, quarantine release or admission policy by itself. A security reviewer must validate those dependencies and live rejection cases before deciding on an individually scoped legacy-policy exemption. Checkov's ACR vulnerability rule checks the SKU only; the separate Trivy scan is actual image-scanning evidence, and subscription-wide Defender remains a bootstrap requirement.
 
 ## Reproduce
 
-Install Terraform, TFLint and Helm versions above. In a Python virtual environment install `checkov==3.4.3` and `PyYAML==6.0.3`, activate it, then run:
+Install the versions above, activate a virtual environment containing `checkov==3.4.3` and `PyYAML==6.0.3`, and run:
 
 ```bash
 ./scripts/validate-local.sh
+terraform -chdir=environments/dev test -var-file=config.tfvars
+terraform -chdir=environments/prod test -var-file=config.tfvars
 ```
 
-The script runs from the repository root regardless of the caller's directory. Provider/plugin initialization requires internet access. It runs YAML and Helm checks before stopping when Checkov reports findings. To inspect those checks independently:
+The script runs from the repository root regardless of the caller's directory. Initialization requires provider/plugin network access; tests use a loopback port. The Terraform tests use mocked providers, documentation IPs and fabricated IDs and must never be mistaken for a cloud deployment plan.
+
+To repeat the image scan:
 
 ```bash
-python3 -c 'import yaml; yaml.safe_load(open("cisco/containerlab.yaml"))'
-helm lint helm/hybrid-demo --set azure.keyvaultName=a --set azure.workloadClientId=b --set azure.tenantId=c
+docker build -t hybrid-demo:private-review app
+trivy image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 hybrid-demo:private-review
 ```
 
-## Remaining deployment verification
+Read-only Azure inventory found no deployed `hybridlz-dev-rg` or `hybridlz-prod-rg`. Existing `akspoc-rg` resources were not changed. Initial cloud GitHub workflows failed at Azure login because repository OIDC secrets/variables are not configured; GitHub authentication for publishing is separate from Azure authorization. The paid review changes do not trigger automatic applies.
 
-Supply a reachable Cisco public IPv4, a real VPN PSK through an environment variable or secret store, remote backend settings, and an AKS administrator Entra group. Follow README sections 2–6 to bootstrap state, configure OIDC, review a saved plan and deploy one environment. Do not substitute the synthetic renderer test inputs for deployment credentials.
-
-On a licensed Linux x86_64 Cisco lab, prove IKEv2 and IPsec SAs, BGP establishment, learned routes and private VM HTTP traffic. On AKS, mount the real Key Vault secret and confirm rollout and `/readyz`. Capture sanitized command output before marking the README's end-to-end checkbox complete. No cloud resources were created during this local verification.
-
-Read-only Azure inventory found no `hybridlz-dev-rg` or `hybridlz-prod-rg` deployment. An existing `akspoc-rg` belongs to a different project and was not changed. Local Docker has no licensed CSR image. Required external inputs remain: the Cisco lab host/user and reachable public IPv4, AKS administrator group IDs, and selected backend settings. The repository's Azure OIDC principals, environment protections, secrets and variables must then be bootstrapped according to README section 3. Keep real PSKs out of chat and Git; supply them through a secret store.
+See the [deployment plan](deployment-plan.md) for bootstrap order, recurring cost drivers, plan approval and acceptance evidence. Full hybrid verification remains blocked until a licensed Cisco lab and real peer address exist.

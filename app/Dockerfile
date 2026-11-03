@@ -1,4 +1,4 @@
-FROM python:3.12-alpine3.20
+FROM python:3.12-alpine3.23
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /srv
 COPY --chown=app:app server.py ./server.py

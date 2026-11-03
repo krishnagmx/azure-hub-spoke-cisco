@@ -163,6 +163,20 @@ resource "azurerm_network_security_rule" "pe_deny" {
   network_security_group_name = azurerm_network_security_group.spoke["prod_pe"].name
 }
 
+resource "azurerm_network_security_rule" "pe_private_runner" {
+  name                        = "AllowSharedRunnerHTTPS"
+  priority                    = 130
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = var.shared_subnet_cidr
+  destination_address_prefix  = var.prod_pe_subnet_cidr
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = azurerm_network_security_group.spoke["prod_pe"].name
+}
+
 # Default NSG AllowVNetInBound is broader than the tested application requires.
 resource "azurerm_network_security_rule" "deny_other_spoke_inbound" {
   for_each                    = toset(["nonprod_app", "nonprod_pe", "nonprod_vm"])
@@ -296,16 +310,17 @@ resource "azurerm_firewall_policy" "this" {
   name                     = "${var.name_prefix}-fw-policy"
   resource_group_name      = var.resource_group_name
   location                 = var.location
-  sku                      = "Standard"
+  sku                      = "Premium"
   threat_intelligence_mode = "Deny"
-  tags                     = var.tags
+  intrusion_detection { mode = "Deny" }
+  tags = var.tags
 }
 resource "azurerm_firewall" "this" {
   name                = "${var.name_prefix}-firewall"
   resource_group_name = var.resource_group_name
   location            = var.location
   sku_name            = "AZFW_VNet"
-  sku_tier            = "Standard"
+  sku_tier            = "Premium"
   firewall_policy_id  = azurerm_firewall_policy.this.id
   threat_intel_mode   = "Deny"
   tags                = var.tags

@@ -1,0 +1,16 @@
+{
+  "scanner": "Trivy 0.76.1",
+  "date": "2026-11-03",
+  "image": "hybrid-demo:private-review",
+  "image_id": "sha256:96cab31ac6834cdecd143d6da00a82921950712fb1e9ca06078d879f256deb44",
+  "os": {
+    "Family": "alpine",
+    "Name": "3.23.7"
+  },
+  "severities": [
+    "HIGH",
+    "CRITICAL"
+  ],
+  "finding_count": 0,
+  "findings": []
+}

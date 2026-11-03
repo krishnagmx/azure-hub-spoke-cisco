@@ -34,16 +34,23 @@ variable "onprem_public_ip" {
   description = "Real reachable public IP forwarding UDP 500 and 4500 to Cisco."
 }
 variable "aks_admin_group_object_ids" {
-  type    = list(string)
-  default = []
+  type = list(string)
+  validation {
+    condition     = length(var.aks_admin_group_object_ids) > 0 && alltrue([for id in var.aks_admin_group_object_ids : can(regex("^[0-9a-fA-F-]{36}$", id))])
+    error_message = "Supply at least one AKS administrator Entra group object UUID."
+  }
 }
-variable "private_aks" {
-  type    = bool
-  default = false
+variable "disk_encryption_set_id" {
+  type        = string
+  description = "Security-team managed, same-region Disk Encryption Set resource ID. Required before a deployable plan can be created."
 }
-variable "aks_authorized_ip_ranges" {
-  type    = list(string)
-  default = null
+variable "acr_replica_location" {
+  type    = string
+  default = "northeurope"
+}
+variable "aks_workload_node_count" {
+  type    = number
+  default = 2
 }
 variable "aks_node_count" {
   type    = number

@@ -1,47 +1,57 @@
 name: AKS Application Delivery
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'app/**'
-      - 'helm/**'
-      - '.github/workflows/app-deploy.yml'
   workflow_dispatch:
+    inputs:
+      image_digest:
+        description: 'Approved, signed and quarantine-released sha256 image digest'
+        required: true
+        type: string
 permissions:
   contents: read
   id-token: write
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-24.04
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, azure-private]
     environment: production
     steps:
       - uses: actions/checkout@v4.2.2
+      - name: Validate immutable image input
+        env:
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+        run: |
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'A SHA256 digest is required'; exit 1; }
+          command -v notation
+          command -v trivy
       - uses: azure/login@v3.1.0
         with:
           client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Build and push immutable image
+      - name: Verify released image signature and vulnerabilities
         env:
           ACR_NAME: ${{ vars.ACR_NAME }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
         run: |
           az acr login --name "$ACR_NAME"
-          docker build --pull -t "${ACR_NAME}.azurecr.io/hybrid-demo:${GITHUB_SHA}" app
-          docker push "${ACR_NAME}.azurecr.io/hybrid-demo:${GITHUB_SHA}"
+          IMAGE="${ACR_NAME}.azurecr.io/hybrid-demo@${IMAGE_DIGEST}"
+          # Security bootstrap must install the approved Notation trust policy and certificate.
+          # A quarantined image cannot be pulled by this deployment identity.
+          python3 scripts/verify-release.py "$IMAGE"
       - uses: azure/setup-helm@v4.3.1
         with:
           version: v3.18.4
-      - name: Authenticate to AKS
+      - name: Authenticate to private AKS
         env:
           AKS_NAME: ${{ vars.AKS_NAME }}
           AZURE_RG: ${{ vars.AZURE_RG }}
         run: |
-          sudo az aks install-cli
           az aks get-credentials -g "$AZURE_RG" -n "$AKS_NAME" --overwrite-existing
           kubelogin convert-kubeconfig -l azurecli
       - name: Helm rollout
         env:
           ACR_NAME: ${{ vars.ACR_NAME }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
           KEYVAULT_NAME: ${{ vars.KEYVAULT_NAME }}
           WORKLOAD_CLIENT_ID: ${{ vars.WORKLOAD_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -49,7 +59,7 @@ jobs:
           helm upgrade --install hybrid-demo ./helm/hybrid-demo \
             --namespace demo --create-namespace --wait --timeout 10m \
             --set-string image.repository="${ACR_NAME}.azurecr.io/hybrid-demo" \
-            --set-string image.tag="${GITHUB_SHA}" \
+            --set-string image.digest="$IMAGE_DIGEST" \
             --set-string azure.keyvaultName="$KEYVAULT_NAME" \
             --set-string azure.workloadClientId="$WORKLOAD_CLIENT_ID" \
             --set-string azure.tenantId="$AZURE_TENANT_ID"
