@@ -18,6 +18,6 @@ tflint --init --config="$TFLINT_CONFIG_FILE"
 for env in dev prod; do
   tflint --chdir="environments/$env" --config="$TFLINT_CONFIG_FILE"
 done
-checkov -d . --framework terraform --quiet
 python3 -c 'import yaml; yaml.safe_load(open("cisco/containerlab.yaml"))'
 helm lint helm/hybrid-demo --set azure.keyvaultName=a --set azure.workloadClientId=b --set azure.tenantId=c
+checkov -d . --framework terraform --quiet --skip-download

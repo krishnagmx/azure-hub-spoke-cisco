@@ -20,3 +20,38 @@ jobs:
             bash -n "$script"
           done
       - run: terraform fmt -check -recursive
+  terraform:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [dev, prod]
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.9.8
+      - run: terraform -chdir=environments/${{ matrix.target }} init -backend=false -input=false -lockfile=readonly
+      - run: terraform -chdir=environments/${{ matrix.target }} validate -no-color
+      - uses: terraform-linters/setup-tflint@v4.1.1
+        with:
+          tflint_version: v0.57.0
+      - run: tflint --init --config="$GITHUB_WORKSPACE/.tflint.hcl"
+      - run: tflint --chdir=environments/${{ matrix.target }} --config="$GITHUB_WORKSPACE/.tflint.hcl"
+  helm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: azure/setup-helm@v4.3.1
+        with:
+          version: v3.18.4
+      - run: helm lint helm/hybrid-demo --set azure.keyvaultName=a --set azure.workloadClientId=b --set azure.tenantId=c
+  security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install checkov==3.4.3
+      - run: checkov -d . --framework terraform --quiet --skip-download

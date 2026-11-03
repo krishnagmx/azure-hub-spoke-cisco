@@ -8,7 +8,11 @@ resource "azurerm_key_vault" "this" {
   purge_protection_enabled      = true
   soft_delete_retention_days    = 90
   public_network_access_enabled = false
-  tags                          = var.tags
+  network_acls {
+    default_action = "Deny"
+    bypass         = "None"
+  }
+  tags = var.tags
 }
 
 resource "azurerm_private_dns_zone" "vault" {

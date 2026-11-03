@@ -297,7 +297,7 @@ resource "azurerm_firewall_policy" "this" {
   resource_group_name      = var.resource_group_name
   location                 = var.location
   sku                      = "Standard"
-  threat_intelligence_mode = "Alert"
+  threat_intelligence_mode = "Deny"
   tags                     = var.tags
 }
 resource "azurerm_firewall" "this" {
@@ -307,6 +307,7 @@ resource "azurerm_firewall" "this" {
   sku_name            = "AZFW_VNet"
   sku_tier            = "Standard"
   firewall_policy_id  = azurerm_firewall_policy.this.id
+  threat_intel_mode   = "Deny"
   tags                = var.tags
   ip_configuration {
     name                 = "firewall-ipconfig"
@@ -401,6 +402,17 @@ resource "azurerm_route" "spoke_onprem" {
   next_hop_type          = "VirtualAppliance"
   next_hop_in_ip_address = azurerm_firewall.this.ip_configuration[0].private_ip_address
 }
+# Peering routes are more specific than 0.0.0.0/0. Explicit destination
+# routes keep cross-spoke traffic on the inspection path.
+resource "azurerm_route" "spoke_peer" {
+  for_each               = { prod = var.nonprod_cidr, nonprod = var.prod_cidr }
+  name                   = "peer-spoke-via-firewall"
+  resource_group_name    = var.resource_group_name
+  route_table_name       = azurerm_route_table.spoke[each.key].name
+  address_prefix         = each.value
+  next_hop_type          = "VirtualAppliance"
+  next_hop_in_ip_address = azurerm_firewall.this.ip_configuration[0].private_ip_address
+}
 resource "azurerm_route_table" "gateway" {
   name                = "${var.name_prefix}-gateway-udr"
   resource_group_name = var.resource_group_name
@@ -424,25 +436,25 @@ resource "azurerm_subnet_route_table_association" "gateway" {
 resource "azurerm_subnet_route_table_association" "prod_aks" {
   subnet_id      = azurerm_subnet.prod_aks.id
   route_table_id = azurerm_route_table.spoke["prod"].id
-  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem]
+  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem, azurerm_route.spoke_peer]
 }
 resource "azurerm_subnet_route_table_association" "prod_pe" {
   subnet_id      = azurerm_subnet.prod_pe.id
   route_table_id = azurerm_route_table.spoke["prod"].id
-  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem]
+  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem, azurerm_route.spoke_peer]
 }
 resource "azurerm_subnet_route_table_association" "nonprod_app" {
   subnet_id      = azurerm_subnet.nonprod_app.id
   route_table_id = azurerm_route_table.spoke["nonprod"].id
-  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem]
+  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem, azurerm_route.spoke_peer]
 }
 resource "azurerm_subnet_route_table_association" "nonprod_pe" {
   subnet_id      = azurerm_subnet.nonprod_pe.id
   route_table_id = azurerm_route_table.spoke["nonprod"].id
-  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem]
+  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem, azurerm_route.spoke_peer]
 }
 resource "azurerm_subnet_route_table_association" "nonprod_vm" {
   subnet_id      = azurerm_subnet.nonprod_vm.id
   route_table_id = azurerm_route_table.spoke["nonprod"].id
-  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem]
+  depends_on     = [azurerm_route.spoke_default, azurerm_route.spoke_onprem, azurerm_route.spoke_peer]
 }

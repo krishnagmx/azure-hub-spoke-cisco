@@ -31,12 +31,14 @@ resource "azurerm_kubernetes_cluster" "this" {
   workload_identity_enabled         = true
   azure_policy_enabled              = true
   role_based_access_control_enabled = true
+  automatic_channel_upgrade         = "patch"
   tags                              = var.tags
 
   default_node_pool {
     name                         = "system"
     vm_size                      = var.vm_size
     node_count                   = var.node_count
+    max_pods                     = 110
     vnet_subnet_id               = var.subnet_id
     only_critical_addons_enabled = false
     temporary_name_for_rotation  = "tempnode"

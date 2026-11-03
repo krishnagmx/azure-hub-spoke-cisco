@@ -2,7 +2,7 @@
 
 > Enterprise hybrid-cloud networking portfolio for Spanish and European financial-services, insurance, public-sector and consultancy roles. Demonstrates Terraform modules, hub/spoke isolation, Cisco IOS-XE IKEv2/IPsec+BGP, Azure Firewall and VPN Gateway, AKS, Key Vault private access, identity federation, GitHub approval gates, logging and FinOps controls. **This is a deployable reference POC, not an audited production blueprint.**
 
-Verification on **3 November 2026**: both Terraform roots validate, TFLint and Helm lint pass, and six Python tests pass, including real HTTP requests. Checkov reports **99 passed / 28 failed / 0 skipped**; cloud deployment and hybrid connectivity remain unverified. See the [verification report](docs/verification.md) and [security findings](docs/checkov-results.json) before deploying.
+Verification on **3 November 2026**: both Terraform roots validate, TFLint and Helm lint pass, and six Python tests pass, including real HTTP requests. After hardening, Checkov reports **103 passed / 24 failed / 0 skipped**, down from 28 findings; cloud deployment and hybrid connectivity remain unverified. See the [verification report](docs/verification.md) and [security findings](docs/checkov-results.json) before deploying.
 
 ### Run the app locally
 
@@ -25,7 +25,7 @@ docker run -d --name hybrid-demo-local --read-only --cap-drop=ALL \
 docker rm -f hybrid-demo-local
 ```
 
-Run `python3 -m unittest discover -s tests -v` for a self-contained HTTP lifecycle test using a temporary secret file and a loopback port. Run `./scripts/validate-local.sh` for the full toolchain; it exits on the first failed check, including security findings. The `Local checks` workflow runs Python tests, shell syntax checks and Terraform formatting without Azure credentials, including on fork pull requests.
+Run `python3 -m unittest discover -s tests -v` for a self-contained HTTP lifecycle test using a temporary secret file and a loopback port. Run `./scripts/validate-local.sh` for the full toolchain; it exits on the first failed check, including security findings. The `Local checks` workflow runs Python tests, shell syntax, formatting, backend-disabled Terraform validation, TFLint, Helm and blocking Checkov without Azure credentials, including on fork pull requests. Checkov runs last in the local script so the other checks complete before the known security failure.
 
 ## 1. Architecture
 
