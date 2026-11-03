@@ -38,6 +38,8 @@ Do not enable subscription-wide paid Defender automatically from each environmen
 
 Review actual currency, subscription discounts, regional availability and quotas. Set an owner, budget and cleanup date before any apply. Stopping worker VMs does not stop Firewall, VPN or registry billing.
 
+A read-only SKU query for this subscription confirms `Standard_D4ds_v5` in West Europe advertises host encryption, ephemeral OS disks and 153600 MiB of local resource storage, enough for the proposed 128-GiB OS disk. It also reports `NotAvailableForSubscription` restrictions for zones 1 and 3. Node pools currently specify no zones; do not add a multi-zone node configuration without resolving those restrictions and reviewing quotas. This capability lookup is not a capacity reservation or a successful allocation test.
+
 ## Bootstrap dependencies
 
 1. Select one environment and confirm the subscription, locations, budget and ownership.

@@ -19,12 +19,15 @@ Date: 3 November 2026. Scope: paid private architecture on `hardening/private-ar
 | Trivy image scan | Zero HIGH/CRITICAL findings; [image report](image-scan.json), Trivy 0.76.1 |
 | Checkov Terraform scan | 131 passed, 2 failed, 0 skipped, 0 parsing errors across 111 resource definitions; [findings](checkov-results.json) |
 | Live saved Azure plan | Not created; real DES, administrator, backend, runner and Cisco peer inputs remain outstanding |
+| Regional node SKU lookup | Host encryption, ephemeral disks and 150-GiB local storage advertised; current subscription restricts zones 1 and 3 in West Europe; actual allocation untested |
 | Azure provisioning / AKS CSI / VPN and BGP | Not verified; no deployment performed |
 | Real image signature, quarantine release and admission policy | Not verified; security bootstrap and live negative tests required |
 
 Terraform uses AzureRM 3.117.1 and AzureAD 2.53.1 with committed provider locks. Signed package hashes are recorded for Linux AMD64, macOS AMD64 and macOS ARM64 so readonly CI initialization can verify its installed packages. Final full-toolchain verification used Terraform 1.9.8, matching CI, TFLint 0.57.0, Helm 3.18.4, Checkov 3.4.3 and PyYAML 6.0.3. The pinned provider emits deprecation warnings for its old subnet-policy and managed-Entra arguments; these are warnings, not validation errors. The Entra flag remains true as required by that provider.
 
 The full local script exits nonzero at its final security check. Passing the earlier checks does not mean the full security gate is green. Lower-severity image findings were outside the requested HIGH/CRITICAL scan and are not claimed absent.
+
+GitHub-hosted Linux verification for code commit `af3c20c` passed Python/shell/format checks, both environment Terraform validation/mock-plan/TFLint jobs, Helm and image vulnerability scanning. Only the two documented Checkov findings failed. [Verification run](https://github.com/krishnagmx/azure-hub-spoke-cisco/actions/runs/41709041250). Signed cross-platform provider hashes and authenticated TFLint release downloads resolved the initial hosted-runner failures. Cloud planning was skipped because this remains a draft PR with unmet bootstrap dependencies.
 
 ## Hardening outcome
 
