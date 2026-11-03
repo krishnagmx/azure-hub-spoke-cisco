@@ -16,3 +16,10 @@ output "firewall_id" { value = azurerm_firewall.this.id }
 output "firewall_private_ip" { value = azurerm_firewall.this.ip_configuration[0].private_ip_address }
 
 output "prod_route_table_id" { value = azurerm_route_table.spoke["prod"].id }
+output "security_configuration" {
+  value = {
+    sku            = azurerm_firewall.this.sku_tier
+    threat_mode    = azurerm_firewall_policy.this.threat_intelligence_mode
+    intrusion_mode = azurerm_firewall_policy.this.intrusion_detection[0].mode
+  }
+}

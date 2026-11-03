@@ -2,6 +2,7 @@ replicaCount: 2
 image:
   repository: example.azurecr.io/hybrid-demo
   tag: '0'
+  digest: ''
   pullPolicy: IfNotPresent
 azure:
   keyvaultName: ''

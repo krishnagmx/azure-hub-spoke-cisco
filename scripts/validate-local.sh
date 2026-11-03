@@ -11,7 +11,7 @@ for script in scripts/*.sh cisco/wan-init.sh; do
 done
 terraform fmt -check -recursive
 for env in dev prod; do
-  (cd "environments/$env" && terraform init -backend=false -input=false && terraform validate)
+  (cd "environments/$env" && terraform init -backend=false -input=false && terraform validate && terraform test -var-file=config.tfvars)
 done
 export TFLINT_CONFIG_FILE="$PWD/.tflint.hcl"
 tflint --init --config="$TFLINT_CONFIG_FILE"

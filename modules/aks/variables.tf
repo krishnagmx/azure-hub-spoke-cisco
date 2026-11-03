@@ -2,6 +2,7 @@ variable "name" { type = string }
 variable "location" { type = string }
 variable "resource_group_name" { type = string }
 variable "subnet_id" { type = string }
+variable "vnet_ids" { type = map(string) }
 variable "workspace_id" { type = string }
 variable "acr_id" { type = string }
 variable "tenant_id" { type = string }
@@ -12,15 +13,19 @@ variable "node_count" {
 }
 variable "vm_size" {
   type    = string
-  default = "Standard_D2as_v5"
+  default = "Standard_D4ds_v5"
 }
-variable "private_cluster_enabled" {
-  type    = bool
-  default = false
+variable "workload_node_count" {
+  type    = number
+  default = 2
 }
-variable "authorized_ip_ranges" {
-  type    = list(string)
-  default = null
+variable "disk_encryption_set_id" {
+  type        = string
+  description = "Existing same-region Disk Encryption Set, with its managed identity authorized on its customer-managed key. Ephemeral OS disks use platform-managed encryption; DES applies to supported managed disks."
+  validation {
+    condition     = can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft.Compute/diskEncryptionSets/[^/]+$", var.disk_encryption_set_id))
+    error_message = "Supply a full Disk Encryption Set resource ID from the security bootstrap."
+  }
 }
 variable "tags" { type = map(string) }
 

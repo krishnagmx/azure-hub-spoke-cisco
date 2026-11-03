@@ -9,13 +9,15 @@ permissions:
   issues: write
 jobs:
   drift:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, azure-private]
     environment: plan
     strategy:
       fail-fast: false
       matrix:
         target: [dev, prod]
     env:
+      TF_VAR_disk_encryption_set_id: ${{ vars.DISK_ENCRYPTION_SET_ID }}
+      TF_VAR_aks_admin_group_object_ids: ${{ vars.AKS_ADMIN_GROUP_OBJECT_IDS }}
       TF_VAR_onprem_public_ip: ${{ vars.CISCO_PUBLIC_IP }}
       TF_VAR_vpn_shared_key: ${{ secrets.VPN_PSK }}
       TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache

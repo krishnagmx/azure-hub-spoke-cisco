@@ -42,10 +42,22 @@ resource "azurerm_container_registry" "this" {
   name                          = "acr${var.environment}${local.unique_id}"
   resource_group_name           = azurerm_resource_group.this.name
   location                      = var.location
-  sku                           = "Basic"
+  sku                           = "Premium"
   admin_enabled                 = false
-  public_network_access_enabled = true # GitHub-hosted runners push using Azure RBAC.
-  tags                          = local.tags
+  public_network_access_enabled = false
+  data_endpoint_enabled         = true
+  zone_redundancy_enabled       = true
+  quarantine_policy_enabled     = true
+  network_rule_bypass_option    = "AzureServices" # Required for Defender registry scanning.
+  retention_policy {
+    enabled = true
+    days    = 7
+  }
+  georeplications {
+    location                = var.acr_replica_location
+    zone_redundancy_enabled = true
+  }
+  tags = local.tags
 }
 
 module "keyvault" {
@@ -61,21 +73,22 @@ module "keyvault" {
 }
 
 module "aks" {
-  source                  = "../../modules/aks"
-  name                    = "${local.prefix}-aks"
-  location                = var.location
-  resource_group_name     = azurerm_resource_group.this.name
-  subnet_id               = module.network.prod_aks_subnet_id
-  route_table_id          = module.network.prod_route_table_id
-  workspace_id            = module.monitoring.workspace_id
-  acr_id                  = azurerm_container_registry.this.id
-  tenant_id               = data.azuread_client_config.current.tenant_id
-  admin_group_object_ids  = var.aks_admin_group_object_ids
-  private_cluster_enabled = var.private_aks
-  authorized_ip_ranges    = var.aks_authorized_ip_ranges
-  node_count              = var.aks_node_count
-  tags                    = local.tags
-  depends_on              = [module.network]
+  vnet_ids               = module.network.vnet_ids
+  source                 = "../../modules/aks"
+  name                   = "${local.prefix}-aks"
+  location               = var.location
+  resource_group_name    = azurerm_resource_group.this.name
+  subnet_id              = module.network.prod_aks_subnet_id
+  route_table_id         = module.network.prod_route_table_id
+  workspace_id           = module.monitoring.workspace_id
+  acr_id                 = azurerm_container_registry.this.id
+  tenant_id              = data.azuread_client_config.current.tenant_id
+  admin_group_object_ids = var.aks_admin_group_object_ids
+  disk_encryption_set_id = var.disk_encryption_set_id
+  workload_node_count    = var.aks_workload_node_count
+  node_count             = var.aks_node_count
+  tags                   = local.tags
+  depends_on             = [module.network]
 }
 
 resource "azurerm_role_assignment" "kv_workload_read" {
@@ -172,4 +185,36 @@ resource "azurerm_linux_virtual_machine" "test" {
     version   = "latest"
   }
   boot_diagnostics {}
+}
+
+resource "azurerm_private_dns_zone" "acr" {
+  name                = "privatelink.azurecr.io"
+  resource_group_name = azurerm_resource_group.this.name
+  tags                = local.tags
+}
+resource "azurerm_private_dns_zone_virtual_network_link" "acr" {
+  for_each              = module.network.vnet_ids
+  name                  = "${each.key}-acr-dns"
+  resource_group_name   = azurerm_resource_group.this.name
+  private_dns_zone_name = azurerm_private_dns_zone.acr.name
+  virtual_network_id    = each.value
+  registration_enabled  = false
+  tags                  = local.tags
+}
+resource "azurerm_private_endpoint" "acr" {
+  name                = "${local.prefix}-acr-pe"
+  resource_group_name = azurerm_resource_group.this.name
+  location            = var.location
+  subnet_id           = module.network.prod_pe_subnet_id
+  tags                = local.tags
+  private_service_connection {
+    name                           = "acr-connection"
+    private_connection_resource_id = azurerm_container_registry.this.id
+    subresource_names              = ["registry"]
+    is_manual_connection           = false
+  }
+  private_dns_zone_group {
+    name                 = "acr-dns"
+    private_dns_zone_ids = [azurerm_private_dns_zone.acr.id]
+  }
 }
