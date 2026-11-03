@@ -22,7 +22,7 @@ Date: 3 November 2026. Scope: paid private architecture on `hardening/private-ar
 | Azure provisioning / AKS CSI / VPN and BGP | Not verified; no deployment performed |
 | Real image signature, quarantine release and admission policy | Not verified; security bootstrap and live negative tests required |
 
-Terraform uses AzureRM 3.117.1 and AzureAD 2.53.1 with committed provider locks. Final full-toolchain verification used Terraform 1.9.8, matching CI, TFLint 0.57.0, Helm 3.18.4, Checkov 3.4.3 and PyYAML 6.0.3. The pinned provider emits deprecation warnings for its old subnet-policy and managed-Entra arguments; these are warnings, not validation errors. The Entra flag remains true as required by that provider.
+Terraform uses AzureRM 3.117.1 and AzureAD 2.53.1 with committed provider locks. Signed package hashes are recorded for Linux AMD64, macOS AMD64 and macOS ARM64 so readonly CI initialization can verify its installed packages. Final full-toolchain verification used Terraform 1.9.8, matching CI, TFLint 0.57.0, Helm 3.18.4, Checkov 3.4.3 and PyYAML 6.0.3. The pinned provider emits deprecation warnings for its old subnet-policy and managed-Entra arguments; these are warnings, not validation errors. The Entra flag remains true as required by that provider.
 
 The full local script exits nonzero at its final security check. Passing the earlier checks does not mean the full security gate is green. Lower-severity image findings were outside the requested HIGH/CRITICAL scan and are not claimed absent.
 
