@@ -38,6 +38,8 @@ jobs:
         with:
           tflint_version: v0.57.0
       - run: tflint --init --config="$GITHUB_WORKSPACE/.tflint.hcl"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: tflint --chdir=environments/${{ matrix.target }} --config="$GITHUB_WORKSPACE/.tflint.hcl"
   helm:
     runs-on: ubuntu-24.04
